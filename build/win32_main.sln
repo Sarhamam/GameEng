@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1321
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "win32_main", "win32_main.exe", "{C58ADE8E-D3F3-45F1-94A3-FBE7238B9E24}"
+	ProjectSection(DebuggerProjectSystem) = preProject
+		PortSupplier = 00000000-0000-0000-0000-000000000000
+		Executable = W:\build\win32_main.exe
+		RemoteMachine = DESKTOP-AT5SHI0
+		StartingDirectory = W:\data
+		Environment = Default
+		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		UseLegacyDebugEngines = No
+		LaunchSQLEngine = No
+		AttachLaunchAction = No
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{7C8E4C89-49EF-4E85-85CF-CB710A273520}"
+	ProjectSection(SolutionItems) = preProject
+		..\code\game.cpp = ..\code\game.cpp
+		..\code\game.h = ..\code\game.h
+		..\code\intrinsics.h = ..\code\intrinsics.h
+		..\code\win32_main.cpp = ..\code\win32_main.cpp
+		..\code\win32_main.h = ..\code\win32_main.h
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C58ADE8E-D3F3-45F1-94A3-FBE7238B9E24}.Release|x64.ActiveCfg = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {217FC866-5700-47E3-8CB3-F50C8F7B4D41}
+	EndGlobalSection
+EndGlobal
