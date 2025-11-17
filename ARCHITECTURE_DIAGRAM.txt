@@ -1,0 +1,313 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                 SU(3)×SU(2)×U(1) GAUGE THEORY TESTBED                        ║
+║                        Architecture Overview                                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GAUGE GROUP STRUCTURE                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│    G = SU(3) × SU(2) × U(1)   (Standard Model gauge group)                │
+│         │       │       │                                                   │
+│         │       │       └─── U(1):  1 photon     (electromagnetism)        │
+│         │       └─────────── SU(2): 3 weak bosons (W+, W-, Z)              │
+│         └───────────────────── SU(3): 8 gluons    (color force)            │
+│                                                                             │
+│    Total: 12 gauge bosons                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        PHYSICS PIPELINE (Per Frame)                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. GAUGE FIELDS A_μ                                                        │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ 128×128 lattice, 12 gauge bosons × 2 components   │                 │
+│     │ Storage: gauge_field_point[128][128]              │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                          │                                                  │
+│                          │ ComputeFieldStrengths()                         │
+│                          ▼                                                  │
+│  2. FIELD STRENGTHS F^a_μν                                                  │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ F = ∂A + g[A,A]  (curvature of connection)       │                 │
+│     │ Nonlinear terms for SU(3), SU(2)                  │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                          │                                                  │
+│                          │ ComputeStressEnergy()                           │
+│                          ▼                                                  │
+│  3. STRESS-ENERGY TENSOR T_μν                                               │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ T_μν = Σ F^a F^a  (gauge field energy density)    │                 │
+│     │ Sum over all 12 gauge bosons                       │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                          │                                                  │
+│                          │ InduceMetricFromGaugeFields()                   │
+│                          ▼                                                  │
+│  4. EMERGENT METRIC g_μν   ⭐ KEY STEP ⭐                                   │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ g_μν = η_μν + α·T_μν  (Einstein equation)         │                 │
+│     │ Spacetime geometry EMERGES from gauge fields!     │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                          │                                                  │
+│                          │ ComputeCurvature()                              │
+│                          ▼                                                  │
+│  5. SPACETIME CURVATURE R                                                   │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ R = f(g_μν)  (Ricci scalar)                       │                 │
+│     │ THE RESIDUAL from gauge dynamics                  │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                          │                                                  │
+│                          │ UpdateParticleDynamics()                        │
+│                          ▼                                                  │
+│  6. MATTER FIELDS ψ                                                         │
+│     ┌────────────────────────────────────────────────────┐                 │
+│     │ Quarks: (color, weak, hypercharge)                │                 │
+│     │ Leptons: (weak, hypercharge)                      │                 │
+│     │ Motion: geodesics + parallel transport            │                 │
+│     └────────────────────────────────────────────────────┘                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FILE ORGANIZATION                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  gauge_theory.h                                                             │
+│  ├─ Data structures                                                         │
+│  │  ├─ gauge_field_point      (12 gauge bosons at one lattice site)       │
+│  │  ├─ field_strength          (F^a for all gauge groups)                  │
+│  │  ├─ metric_tensor           (g_μν, 2×2 matrix)                          │
+│  │  ├─ stress_energy_tensor    (T_μν from fields)                          │
+│  │  ├─ spacetime_curvature     (Ricci scalar R)                            │
+│  │  ├─ quark_state             (position + color + weak + hypercharge)     │
+│  │  ├─ lepton_state            (position + weak + hypercharge)             │
+│  │  ├─ gauge_field_lattice     (128×128 grid of all fields)               │
+│  │  └─ gauge_theory_state      (complete simulation state)                 │
+│  └─ Function declarations (17 core functions)                               │
+│                                                                             │
+│  gauge_theory.cpp                                                           │
+│  ├─ InitGaugeFieldLattice()           Initialize to zero + flat metric     │
+│  ├─ ComputeFieldStrengths()           F = ∂A + g[A,A]                      │
+│  ├─ ComputeStressEnergy()             T_μν from F^a                         │
+│  ├─ InduceMetricFromGaugeFields()     g_μν = η + α·T                       │
+│  ├─ ComputeCurvature()                R from g_μν                           │
+│  ├─ ParallelTransportQuark()          Rotate internal quantum numbers      │
+│  ├─ ParallelTransportLepton()         (same for leptons)                   │
+│  ├─ UpdateQuarkDynamics()             Geodesics + gauge forces             │
+│  ├─ UpdateLeptonDynamics()            (same for leptons)                   │
+│  ├─ SampleGaugeField()                Bilinear interpolation               │
+│  ├─ SampleMetric()                    Bilinear interpolation               │
+│  ├─ SetDipoleGaugeField()             Initial condition: EM dipole         │
+│  ├─ SetVortexGaugeField()             Initial condition: vortex            │
+│  ├─ AddGaugeFieldNoise()              Random vacuum fluctuations           │
+│  ├─ ComputeWilsonLoop()               Gauge-invariant observable           │
+│  ├─ ComputeTotalAction()              Sum of field energy                  │
+│  └─ ComputeAverageCurvature()         Mean Ricci scalar                    │
+│                                                                             │
+│  gauge_render.cpp                                                           │
+│  ├─ RenderGaugeFields()               Main visualization dispatcher        │
+│  │  ├─ VIZ_GLUONS     → Show SU(3) field strength                          │
+│  │  ├─ VIZ_WEAK       → Show SU(2) field strength                          │
+│  │  ├─ VIZ_EM         → Show U(1) field strength                           │
+│  │  ├─ VIZ_CURVATURE  → Show spacetime curvature R ⭐                      │
+│  │  ├─ VIZ_METRIC     → Show metric distortion ||g - η||                   │
+│  │  └─ VIZ_PARTICLES  → Show quarks + leptons                              │
+│  ├─ ValueToColor()                    Map scalar → RGB gradient            │
+│  ├─ PhaseToColor()                    Map quantum phase → hue              │
+│  └─ DrawCircle()                      Render particles                     │
+│                                                                             │
+│  gauge_integration.cpp                                                      │
+│  ├─ InitGaugeTheoryTestbed()         Set up initial state                  │
+│  ├─ UpdateGaugeTheoryTestbed()       Per-frame physics update              │
+│  └─ GetRequiredGaugeTheoryMemory()   Memory footprint calculation          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MATTER FIELD STRUCTURE                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  QUARK (interacts with ALL 12 gauge bosons)                                │
+│  ┌───────────────────────────────────────┐                                 │
+│  │ Position:      (x, y)                │                                 │
+│  │ Velocity:      (vx, vy)              │                                 │
+│  │ Color (SU(3)): 3 complex amplitudes  │  ← Interacts with 8 gluons      │
+│  │ Weak (SU(2)):  2 complex amplitudes  │  ← Interacts with W+, W-, Z     │
+│  │ Hypercharge:   1 phase               │  ← Interacts with photon        │
+│  └───────────────────────────────────────┘                                 │
+│                                                                             │
+│  LEPTON (no color, interacts with 4 gauge bosons)                          │
+│  ┌───────────────────────────────────────┐                                 │
+│  │ Position:      (x, y)                │                                 │
+│  │ Velocity:      (vx, vy)              │                                 │
+│  │ Color:         SINGLET (no SU(3))    │  ← No gluon interaction         │
+│  │ Weak (SU(2)):  2 complex amplitudes  │  ← Interacts with W+, W-, Z     │
+│  │ Hypercharge:   1 phase               │  ← Interacts with photon        │
+│  └───────────────────────────────────────┘                                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       VISUALIZATION MODE GUIDE                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [1] VIZ_GLUONS (SU(3))                                                     │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: Σ |F^a_SU3|  (a=1..8)           │                           │
+│      │ Color: Blue (weak) → Red (strong)      │                           │
+│      │ Physics: Color force field in QCD      │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+│  [2] VIZ_WEAK (SU(2))                                                       │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: Σ |F^i_SU2|  (i=1..3)           │                           │
+│      │ Color: Blue → Red                      │                           │
+│      │ Physics: Weak nuclear force (W/Z)      │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+│  [3] VIZ_EM (U(1))                                                          │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: |F_U1| (photon)                 │                           │
+│      │ Color: Blue → Red                      │                           │
+│      │ Physics: Electromagnetic field          │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+│  [4] VIZ_CURVATURE ⭐ THE KEY VISUALIZATION ⭐                              │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: Ricci scalar R                   │                           │
+│      │ Color: Blue (R<0) ← Black → Red (R>0) │                           │
+│      │ Physics: SPACETIME CURVATURE            │                           │
+│      │          Emergent from gauge fields!    │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+│  [5] VIZ_METRIC                                                             │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: ||g_μν - η_μν||                 │                           │
+│      │ Color: Blue → Red (distortion)         │                           │
+│      │ Physics: How far from flat spacetime    │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+│  [6] VIZ_PARTICLES                                                          │
+│      ┌─────────────────────────────────────────┐                           │
+│      │ Shows: Quarks (3px) + Leptons (2px)    │                           │
+│      │ Color: Hue = U(1) phase                 │                           │
+│      │ Physics: Matter field dynamics          │                           │
+│      └─────────────────────────────────────────┘                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MEMORY LAYOUT                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Permanent Memory (64 MB)                                                   │
+│  ┌────────────────────────────────────────┐                                │
+│  │ game_state                             │  ~1 KB                         │
+│  │  ├─ playerPos                          │                                │
+│  │  ├─ gaugeTheory (pointer)              │                                │
+│  │  └─ useGaugeTheory (flag)              │                                │
+│  └────────────────────────────────────────┘                                │
+│                                                                             │
+│  Transient Memory (4 GB)                                                    │
+│  ┌────────────────────────────────────────┐                                │
+│  │ gauge_theory_state                     │  ~100 KB                       │
+│  │  ├─ lattice (pointer)                  │                                │
+│  │  ├─ quarks[256]                        │                                │
+│  │  ├─ leptons[256]                       │                                │
+│  │  ├─ dt, alpha                          │                                │
+│  │  └─ viz_mode                           │                                │
+│  ├────────────────────────────────────────┤                                │
+│  │ gauge_field_lattice                    │  ~3 MB                         │
+│  │  ├─ fields[128][128]                   │  ~1.5 MB                       │
+│  │  ├─ strengths[128][128]                │  ~0.8 MB                       │
+│  │  ├─ metrics[128][128]                  │  ~0.2 MB                       │
+│  │  ├─ stress[128][128]                   │  ~0.2 MB                       │
+│  │  └─ curvature[128][128]                │  ~0.2 MB                       │
+│  └────────────────────────────────────────┘                                │
+│                                                                             │
+│  Total used: ~3.1 MB / 4 GB  (0.075%)                                       │
+│  Remaining: 4,093 MB available for expansion                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       PRINCIPAL BUNDLE STRUCTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  P(M, G) = Principal Bundle                                                 │
+│                                                                             │
+│      Fiber F_x                   Total Space P                             │
+│         │                              │                                    │
+│         │                              │                                    │
+│    SU(3)×SU(2)×U(1) ─────────────────→ │                                    │
+│         │                              │                                    │
+│         │                              ↓                                    │
+│         └─────────────────> Point x ∈ M  (Base Manifold)                   │
+│                                                                             │
+│  Components:                                                                │
+│  ┌────────────────────────────────────────────────────────┐                │
+│  │ Base M:      2D lattice (screen coordinates)          │                │
+│  │ Fiber F_x:   Internal quantum numbers (12-dim)        │                │
+│  │ Group G:     SU(3) × SU(2) × U(1)                     │                │
+│  │ Connection:  A = (G^a, W^i, B) gauge bosons           │                │
+│  │ Curvature:   F = dA + A∧A field strengths             │                │
+│  └────────────────────────────────────────────────────────┘                │
+│                                                                             │
+│  Gauge Invariants:                                                          │
+│  ├─ Wilson loops:  W(C) = Tr[P exp(∮_C A)]                                │
+│  ├─ Total action:  S = ∫ Σ_a F^a² d²x                                      │
+│  └─ κζ ratio:      κζ = M_τ(eigenvalues) / M_σ(eigenvalues)                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CONTROL FLOW (Integration)                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  GameUpdateAndRender()                                                      │
+│      │                                                                       │
+│      ├─ if (!initialized)                                                   │
+│      │     └─ InitGaugeTheoryTestbed()                                      │
+│      │         ├─ Allocate lattice                                          │
+│      │         ├─ SetDipoleGaugeField()  (EM dipole)                       │
+│      │         ├─ AddGaugeFieldNoise()    (vacuum fluctuations)            │
+│      │         ├─ Initialize 50 quarks                                      │
+│      │         └─ Initialize 30 leptons                                     │
+│      │                                                                       │
+│      ├─ Handle input                                                        │
+│      │     ├─ Left Shoulder → Cycle viz_mode                               │
+│      │     ├─ Right Shoulder → Reset fields                                │
+│      │     └─ Action → Add noise                                           │
+│      │                                                                       │
+│      ├─ UpdateGaugeTheoryTestbed()                                          │
+│      │     ├─ ComputeFieldStrengths()        (F from A)                    │
+│      │     ├─ ComputeStressEnergy()          (T from F)                    │
+│      │     ├─ InduceMetricFromGaugeFields()  (g from T) ⭐                 │
+│      │     ├─ ComputeCurvature()             (R from g)                    │
+│      │     ├─ UpdateQuarkDynamics()          (move particles)              │
+│      │     └─ UpdateLeptonDynamics()         (move particles)              │
+│      │                                                                       │
+│      └─ RenderGaugeFields()                                                 │
+│          └─ switch(viz_mode)                                                │
+│              ├─ VIZ_GLUONS → render SU(3)                                   │
+│              ├─ VIZ_WEAK → render SU(2)                                     │
+│              ├─ VIZ_EM → render U(1)                                        │
+│              ├─ VIZ_CURVATURE → render R ⭐                                 │
+│              ├─ VIZ_METRIC → render ||g-η||                                │
+│              └─ VIZ_PARTICLES → render matter                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              KEY INSIGHT                                      ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  Traditional physics:  Fixed spacetime + gauge fields living on it           ║
+║                                                                               ║
+║  This testbed:         Gauge fields → Emergent spacetime geometry            ║
+║                                                                               ║
+║  The metric g_μν is the RESIDUAL from 12 gauge field stress-energy.          ║
+║  Spacetime curvature R is NOT imposed—it EMERGES from field dynamics.        ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
