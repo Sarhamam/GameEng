@@ -508,6 +508,36 @@ internal_fnc metric_tensor SampleMetric(gauge_field_lattice* lattice, float x, f
 // INITIALIZATION PATTERNS
 // ═══════════════════════════════════════════════════════════
 
+internal_fnc void SetUniformGaugeField(gauge_field_lattice* lattice, int field_type)
+{
+    // Set a constant background field
+    // field_type: 0=SU3, 1=SU2, 2=U1
+
+    float field_strength = 0.1f;
+
+    for (int y = 0; y < GAUGE_LATTICE_HEIGHT; y++)
+    {
+        for (int x = 0; x < GAUGE_LATTICE_WIDTH; x++)
+        {
+            if (field_type == 0)
+            {
+                // Uniform SU(3) field in first component
+                lattice->fields[x][y].G[0][0] = field_strength;
+            }
+            else if (field_type == 1)
+            {
+                // Uniform SU(2) field in first component
+                lattice->fields[x][y].W[0][0] = field_strength;
+            }
+            else if (field_type == 2)
+            {
+                // Uniform U(1) field (constant B_x)
+                lattice->fields[x][y].B[0] = field_strength;
+            }
+        }
+    }
+}
+
 internal_fnc void SetDipoleGaugeField(gauge_field_lattice* lattice, float x1, float y1, float x2, float y2)
 {
     // Create a dipole field: positive charge at (x1,y1), negative at (x2,y2)
@@ -647,4 +677,58 @@ internal_fnc float ComputeTotalAction(gauge_theory_state* state)
     }
 
     return action * LATTICE_SPACING * LATTICE_SPACING; // Volume element
+}
+
+internal_fnc float ComputeWilsonLoop(gauge_field_lattice* lattice, int x0, int y0, int width, int height)
+{
+    // Compute Wilson loop: W(C) = Tr[P exp(i ∮_C A·dx)]
+    // For U(1) field, this simplifies to: W = exp(i ∮ B·dx)
+    // For non-abelian, need path-ordered exponential
+
+    // We'll compute for U(1) photon field as a simple case
+    // Full non-abelian version requires matrix path ordering
+
+    float phase_accumulation = 0.0f;
+
+    // Bottom edge (left to right)
+    for (int x = x0; x < x0 + width; x++)
+    {
+        if (x >= 0 && x < GAUGE_LATTICE_WIDTH && y0 >= 0 && y0 < GAUGE_LATTICE_HEIGHT)
+        {
+            phase_accumulation += lattice->fields[x][y0].B[0] * LATTICE_SPACING;
+        }
+    }
+
+    // Right edge (bottom to top)
+    for (int y = y0; y < y0 + height; y++)
+    {
+        int x_right = x0 + width;
+        if (x_right >= 0 && x_right < GAUGE_LATTICE_WIDTH && y >= 0 && y < GAUGE_LATTICE_HEIGHT)
+        {
+            phase_accumulation += lattice->fields[x_right][y].B[1] * LATTICE_SPACING;
+        }
+    }
+
+    // Top edge (right to left) - opposite direction
+    for (int x = x0 + width; x > x0; x--)
+    {
+        int y_top = y0 + height;
+        if (x >= 0 && x < GAUGE_LATTICE_WIDTH && y_top >= 0 && y_top < GAUGE_LATTICE_HEIGHT)
+        {
+            phase_accumulation -= lattice->fields[x][y_top].B[0] * LATTICE_SPACING;
+        }
+    }
+
+    // Left edge (top to bottom) - opposite direction
+    for (int y = y0 + height; y > y0; y--)
+    {
+        if (x0 >= 0 && x0 < GAUGE_LATTICE_WIDTH && y >= 0 && y < GAUGE_LATTICE_HEIGHT)
+        {
+            phase_accumulation -= lattice->fields[x0][y].B[1] * LATTICE_SPACING;
+        }
+    }
+
+    // Wilson loop for U(1): W = Re[exp(i*phase)]
+    // For gauge-invariant observable, we take the real part
+    return cosf(phase_accumulation);
 }
