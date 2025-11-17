@@ -1,6 +1,7 @@
 #include "gauge_theory.h"
 #include "game.h"
 #include <math.h>
+#include <string.h>
 
 /*
     BOOTSTRAP ANALYSIS MODULE

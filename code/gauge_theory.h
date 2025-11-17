@@ -1,4 +1,6 @@
 #pragma once
+
+#include "game.h"
 #include <math.h>
 
 /*
@@ -164,6 +166,17 @@ struct gauge_field_lattice
 #define MAX_QUARKS  256
 #define MAX_LEPTONS 256
 
+// Visualization modes
+enum visualization_mode
+{
+    VIZ_GLUONS,     // Show SU(3) field strength
+    VIZ_WEAK,       // Show SU(2) field strength
+    VIZ_EM,         // Show U(1) field strength
+    VIZ_CURVATURE,  // Show emergent spacetime curvature
+    VIZ_METRIC,     // Show metric tensor distortion
+    VIZ_PARTICLES   // Show matter fields
+};
+
 struct gauge_theory_state
 {
     gauge_field_lattice* lattice;
@@ -179,14 +192,7 @@ struct gauge_theory_state
     float gauge_coupling_alpha; // Controls metric induction strength
 
     // Visualization mode
-    enum {
-        VIZ_GLUONS,     // Show SU(3) field strength
-        VIZ_WEAK,       // Show SU(2) field strength
-        VIZ_EM,         // Show U(1) field strength
-        VIZ_CURVATURE,  // Show emergent spacetime curvature
-        VIZ_METRIC,     // Show metric tensor distortion
-        VIZ_PARTICLES   // Show matter fields
-    } viz_mode;
+    visualization_mode viz_mode;
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -207,6 +213,9 @@ internal_fnc void InduceMetricFromGaugeFields(gauge_field_lattice* lattice, floa
 
 // Compute spacetime curvature from metric
 internal_fnc void ComputeCurvature(gauge_field_lattice* lattice);
+
+// Update gauge fields via Yang-Mills evolution (creates bootstrap feedback loop)
+internal_fnc void UpdateGaugeFields(gauge_field_lattice* lattice, float dt);
 
 // Parallel transport for matter fields
 internal_fnc void ParallelTransportQuark(quark_state* quark, gauge_field_point* field, float dt);
@@ -289,3 +298,4 @@ internal_fnc float ComputeAverageCurvature(gauge_field_lattice* lattice);
 
 // κζ ratio from gauge field eigenspectrum (connection to your existing framework!)
 internal_fnc float ComputeKappaZetaFromGaugeFields(gauge_field_lattice* lattice);
+internal_fnc float ComputeKappaZetaFromMetric(gauge_field_lattice* lattice);

@@ -23,6 +23,78 @@ internal_fnc float Epsilon(int i, int j, int k)
     return 0.0f;
 }
 
+// SU(3) structure constants: f^{abc} from Gell-Mann matrix commutators
+// [λ_a, λ_b] = 2i f^{abc} λ_c
+// These are totally antisymmetric: f^{abc} = -f^{bac} = -f^{acb}
+// Reference: Particle Data Group, "Review of Particle Physics", QCD section
+internal_fnc float StructureConstantSU3(int a, int b, int c)
+{
+    // Indices are 0-7 (8 generators of SU(3))
+    // We'll use a lookup approach for the non-zero values
+
+    // Helper to create unique key for (a,b,c) triple
+    // We'll check all permutations due to antisymmetry
+
+    // Normalize to canonical order a < b
+    if (a > b) {
+        return -StructureConstantSU3(b, a, c);  // Antisymmetry
+    }
+    if (a == b) return 0.0f;  // Antisymmetric → diagonal is zero
+
+    // Now a < b, check the non-zero structure constants
+    // The non-zero f^{abc} values (using 0-indexing, so subtract 1 from textbook):
+
+    const float sqrt3 = 1.732050808f;
+
+    // f^{123} = 1 → f^{012} in 0-indexing
+    if (a == 0 && b == 1 && c == 2) return 1.0f;
+    if (a == 0 && b == 2 && c == 1) return -1.0f;
+    if (a == 1 && b == 2 && c == 0) return 1.0f;
+
+    // f^{147} = 1/2 → f^{036} in 0-indexing
+    if (a == 0 && b == 3 && c == 6) return 0.5f;
+    if (a == 0 && b == 6 && c == 3) return -0.5f;
+    if (a == 3 && b == 6 && c == 0) return 0.5f;
+
+    // f^{156} = -1/2 → f^{045} in 0-indexing
+    if (a == 0 && b == 4 && c == 5) return -0.5f;
+    if (a == 0 && b == 5 && c == 4) return 0.5f;
+    if (a == 4 && b == 5 && c == 0) return -0.5f;
+
+    // f^{246} = 1/2 → f^{135} in 0-indexing
+    if (a == 1 && b == 3 && c == 5) return 0.5f;
+    if (a == 1 && b == 5 && c == 3) return -0.5f;
+    if (a == 3 && b == 5 && c == 1) return 0.5f;
+
+    // f^{257} = 1/2 → f^{146} in 0-indexing
+    if (a == 1 && b == 4 && c == 6) return 0.5f;
+    if (a == 1 && b == 6 && c == 4) return -0.5f;
+    if (a == 4 && b == 6 && c == 1) return 0.5f;
+
+    // f^{345} = 1/2 → f^{234} in 0-indexing
+    if (a == 2 && b == 3 && c == 4) return 0.5f;
+    if (a == 2 && b == 4 && c == 3) return -0.5f;
+    if (a == 3 && b == 4 && c == 2) return 0.5f;
+
+    // f^{367} = -1/2 → f^{256} in 0-indexing
+    if (a == 2 && b == 5 && c == 6) return -0.5f;
+    if (a == 2 && b == 6 && c == 5) return 0.5f;
+    if (a == 5 && b == 6 && c == 2) return -0.5f;
+
+    // f^{458} = √3/2 → f^{347} in 0-indexing
+    if (a == 3 && b == 4 && c == 7) return sqrt3 / 2.0f;
+    if (a == 3 && b == 7 && c == 4) return -sqrt3 / 2.0f;
+    if (a == 4 && b == 7 && c == 3) return sqrt3 / 2.0f;
+
+    // f^{678} = √3/2 → f^{567} in 0-indexing
+    if (a == 5 && b == 6 && c == 7) return sqrt3 / 2.0f;
+    if (a == 5 && b == 7 && c == 6) return -sqrt3 / 2.0f;
+    if (a == 6 && b == 7 && c == 5) return sqrt3 / 2.0f;
+
+    // All other combinations are zero
+    return 0.0f;
+}
+
 // ═══════════════════════════════════════════════════════════
 // INITIALIZATION
 // ═══════════════════════════════════════════════════════════
@@ -75,14 +147,13 @@ internal_fnc void ComputeFieldStrengths(gauge_field_lattice* lattice)
                 float linear_part = dGy_dx - dGx_dy;
 
                 // Nonlinear term (commutator): sum over b,c with structure constants
-                // For now, we'll use a simplified version (full computation requires all f^{abc})
+                // g_s f^{abc} G^b_x G^c_y
                 float nonlinear_part = 0.0f;
                 for (int b = 0; b < 8; b++)
                 {
                     for (int c = 0; c < 8; c++)
                     {
-                        // f^{abc} would go here - using simplified estimate
-                        float f_abc = 0.0f; // TODO: implement full structure constants
+                        float f_abc = StructureConstantSU3(a, b, c);
                         nonlinear_part += G_STRONG * f_abc * field->G[b][0] * field->G[c][1];
                     }
                 }
@@ -137,29 +208,33 @@ internal_fnc void ComputeStressEnergy(gauge_field_lattice* lattice)
             metric_tensor* g = &lattice->metrics[x][y];
             stress_energy_tensor* T = &lattice->stress[x][y];
 
-            // Sum field energy density from all gauge groups
-            float energy_density = 0.0f;
+            // Sum F² = Σ_a (F^a)² from all gauge groups
+            float F_squared = 0.0f;
 
             // SU(3) contribution
             for (int a = 0; a < 8; a++)
             {
-                energy_density += F->F_SU3[a] * F->F_SU3[a];
+                F_squared += F->F_SU3[a] * F->F_SU3[a];
             }
 
             // SU(2) contribution
             for (int i = 0; i < 3; i++)
             {
-                energy_density += F->F_SU2[i] * F->F_SU2[i];
+                F_squared += F->F_SU2[i] * F->F_SU2[i];
             }
 
             // U(1) contribution
-            energy_density += F->F_U1 * F->F_U1;
+            F_squared += F->F_U1 * F->F_U1;
 
-            // Stress-energy components (simplified for 2D)
-            // T_μν ∝ energy_density * g_μν (isotropic approximation)
-            T->T11 = 0.5f * energy_density * g->g11;
-            T->T12 = 0.5f * energy_density * g->g12;
-            T->T22 = 0.5f * energy_density * g->g22;
+            // Stress-energy tensor: T_μν = F_μρ F_ν^ρ - (1/4) g_μν F_ρσ F^ρσ
+            // In 2D with only F_xy component (pure "magnetic" field):
+            //   T_11 = -F²/2
+            //   T_22 = -F²/2
+            //   T_12 = 0
+            // This gives correct anisotropic structure (no shear for pure F_xy)
+            T->T11 = -0.5f * F_squared;
+            T->T12 = 0.0f;  // No shear for pure F_xy field
+            T->T22 = -0.5f * F_squared;
         }
     }
 }
@@ -240,6 +315,189 @@ internal_fnc void ComputeCurvature(gauge_field_lattice* lattice)
             lattice->curvature[x][y].R22 = lattice->curvature[x][y].R * lattice->metrics[x][y].g22;
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// GAUGE FIELD DYNAMICS (Yang-Mills Evolution)
+// ═══════════════════════════════════════════════════════════
+
+internal_fnc void UpdateGaugeFields(gauge_field_lattice* lattice, float dt)
+{
+    // Evolve gauge fields via Yang-Mills equations with metric coupling
+    // Using gradient descent on the action: A_μ^{new} = A_μ - α * ∂S/∂A_μ
+    // where S = (1/4) ∫ F^a_μν F^a^μν √g d²x
+    //
+    // The derivative ∂S/∂A_μ gives the equation of motion:
+    //   ∂S/∂A^a_μ = -D_ν F^a^μν
+    // where D_ν is the gauge covariant derivative
+    //
+    // This couples to metric through √g and g^μν, providing feedback loop
+
+    float dx = LATTICE_SPACING;
+    float damping = 0.95f;  // Damping to prevent instabilities
+
+    // Temporary storage for field updates
+    gauge_field_lattice temp;
+    memcpy(&temp, lattice, sizeof(gauge_field_lattice));
+
+    for (int y = 1; y < GAUGE_LATTICE_HEIGHT - 1; y++)
+    {
+        for (int x = 1; x < GAUGE_LATTICE_WIDTH - 1; x++)
+        {
+            metric_tensor* g = &lattice->metrics[x][y];
+            float sqrt_g = sqrtf(MetricDeterminant(g));
+
+            // ─────────────────────────────────────────────────
+            // SU(3) field evolution
+            // ─────────────────────────────────────────────────
+            for (int a = 0; a < 8; a++)
+            {
+                for (int mu = 0; mu < 2; mu++)  // μ ∈ {0,1} for x,y
+                {
+                    // Compute -D_ν F^{aμν} via finite differences
+                    // This is the Yang-Mills source term
+
+                    float F_a_mu_nu = 0.0f;
+
+                    if (mu == 0)  // A_x component
+                    {
+                        // F^{a x y} = F^a_xy
+                        float F_xy = lattice->strengths[x][y].F_SU3[a];
+                        float F_xy_yp = lattice->strengths[x][y+1].F_SU3[a];
+                        float F_xy_ym = lattice->strengths[x][y-1].F_SU3[a];
+
+                        // D_y F^{a x y} ≈ ∂_y F^{a x y} + g_s f^{abc} A^b_y F^{c x y}
+                        float dF_dy = (F_xy_yp - F_xy_ym) / (2.0f * dx);
+
+                        // Gauge covariant correction (simplified)
+                        float gauge_correction = 0.0f;
+                        for (int b = 0; b < 8; b++)
+                        {
+                            for (int c = 0; c < 8; c++)
+                            {
+                                float f_abc = StructureConstantSU3(a, b, c);
+                                gauge_correction += G_STRONG * f_abc *
+                                    lattice->fields[x][y].G[b][1] * lattice->strengths[x][y].F_SU3[c];
+                            }
+                        }
+
+                        F_a_mu_nu = dF_dy + gauge_correction;
+                    }
+                    else  // A_y component (mu == 1)
+                    {
+                        // F^{a y x} = -F^{a x y}
+                        float F_yx = -lattice->strengths[x][y].F_SU3[a];
+                        float F_yx_xp = -lattice->strengths[x+1][y].F_SU3[a];
+                        float F_yx_xm = -lattice->strengths[x-1][y].F_SU3[a];
+
+                        // D_x F^{a y x}
+                        float dF_dx = (F_yx_xp - F_yx_xm) / (2.0f * dx);
+
+                        float gauge_correction = 0.0f;
+                        for (int b = 0; b < 8; b++)
+                        {
+                            for (int c = 0; c < 8; c++)
+                            {
+                                float f_abc = StructureConstantSU3(a, b, c);
+                                gauge_correction += G_STRONG * f_abc *
+                                    lattice->fields[x][y].G[b][0] * (-lattice->strengths[x][y].F_SU3[c]);
+                            }
+                        }
+
+                        F_a_mu_nu = dF_dx + gauge_correction;
+                    }
+
+                    // Update: A^a_μ ← A^a_μ - dt * (1/√g) * D_ν F^{aμν}
+                    float delta = -dt * F_a_mu_nu / (sqrt_g + 1e-8f);
+                    temp.fields[x][y].G[a][mu] = damping * lattice->fields[x][y].G[a][mu] + delta;
+                }
+            }
+
+            // ─────────────────────────────────────────────────
+            // SU(2) field evolution
+            // ─────────────────────────────────────────────────
+            for (int i = 0; i < 3; i++)
+            {
+                for (int mu = 0; mu < 2; mu++)
+                {
+                    float F_i_mu_nu = 0.0f;
+
+                    if (mu == 0)
+                    {
+                        float F_xy = lattice->strengths[x][y].F_SU2[i];
+                        float F_xy_yp = lattice->strengths[x][y+1].F_SU2[i];
+                        float F_xy_ym = lattice->strengths[x][y-1].F_SU2[i];
+                        float dF_dy = (F_xy_yp - F_xy_ym) / (2.0f * dx);
+
+                        float gauge_correction = 0.0f;
+                        for (int j = 0; j < 3; j++)
+                        {
+                            for (int k = 0; k < 3; k++)
+                            {
+                                float eps_ijk = Epsilon(i, j, k);
+                                gauge_correction += G_WEAK * eps_ijk *
+                                    lattice->fields[x][y].W[j][1] * lattice->strengths[x][y].F_SU2[k];
+                            }
+                        }
+
+                        F_i_mu_nu = dF_dy + gauge_correction;
+                    }
+                    else
+                    {
+                        float F_yx = -lattice->strengths[x][y].F_SU2[i];
+                        float F_yx_xp = -lattice->strengths[x+1][y].F_SU2[i];
+                        float F_yx_xm = -lattice->strengths[x-1][y].F_SU2[i];
+                        float dF_dx = (F_yx_xp - F_yx_xm) / (2.0f * dx);
+
+                        float gauge_correction = 0.0f;
+                        for (int j = 0; j < 3; j++)
+                        {
+                            for (int k = 0; k < 3; k++)
+                            {
+                                float eps_ijk = Epsilon(i, j, k);
+                                gauge_correction += G_WEAK * eps_ijk *
+                                    lattice->fields[x][y].W[j][0] * (-lattice->strengths[x][y].F_SU2[k]);
+                            }
+                        }
+
+                        F_i_mu_nu = dF_dx + gauge_correction;
+                    }
+
+                    float delta = -dt * F_i_mu_nu / (sqrt_g + 1e-8f);
+                    temp.fields[x][y].W[i][mu] = damping * lattice->fields[x][y].W[i][mu] + delta;
+                }
+            }
+
+            // ─────────────────────────────────────────────────
+            // U(1) field evolution (Abelian, simpler)
+            // ─────────────────────────────────────────────────
+            for (int mu = 0; mu < 2; mu++)
+            {
+                float F_mu_nu = 0.0f;
+
+                if (mu == 0)  // B_x
+                {
+                    float F_xy = lattice->strengths[x][y].F_U1;
+                    float F_xy_yp = lattice->strengths[x][y+1].F_U1;
+                    float F_xy_ym = lattice->strengths[x][y-1].F_U1;
+                    F_mu_nu = (F_xy_yp - F_xy_ym) / (2.0f * dx);
+                }
+                else  // B_y
+                {
+                    float F_yx = -lattice->strengths[x][y].F_U1;
+                    float F_yx_xp = -lattice->strengths[x+1][y].F_U1;
+                    float F_yx_xm = -lattice->strengths[x-1][y].F_U1;
+                    F_mu_nu = (F_yx_xp - F_yx_xm) / (2.0f * dx);
+                }
+
+                float delta = -dt * F_mu_nu / (sqrt_g + 1e-8f);
+                temp.fields[x][y].B[mu] = damping * lattice->fields[x][y].B[mu] + delta;
+            }
+        }
+    }
+
+    // Copy updated fields back
+    memcpy(lattice->fields, temp.fields, sizeof(lattice->fields));
 }
 
 // ═══════════════════════════════════════════════════════════

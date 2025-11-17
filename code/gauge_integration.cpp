@@ -139,7 +139,7 @@ internal_fnc void UpdateGaugeTheoryTestbed(gauge_theory_state* state, game_input
     if (controller->leftShoulder.endedDown && !key_1_was_down)
     {
         // Cycle through visualization modes
-        state->viz_mode = (decltype(state->viz_mode))((state->viz_mode + 1) % 6);
+        state->viz_mode = (visualization_mode)((state->viz_mode + 1) % 6);
     }
     key_1_was_down = controller->leftShoulder.endedDown;
 
@@ -160,7 +160,7 @@ internal_fnc void UpdateGaugeTheoryTestbed(gauge_theory_state* state, game_input
     }
     key_n_was_down = controller->action.endedDown;
 
-    // Physics update
+    // Physics update (Bootstrap feedback loop)
 
     // 1. Compute field strengths from gauge potentials
     ComputeFieldStrengths(state->lattice);
@@ -174,7 +174,11 @@ internal_fnc void UpdateGaugeTheoryTestbed(gauge_theory_state* state, game_input
     // 4. Compute spacetime curvature from metric
     ComputeCurvature(state->lattice);
 
-    // 5. Update particle dynamics
+    // 5. FEEDBACK: Update gauge fields based on curvature (Yang-Mills evolution)
+    //    This creates the gauge ⇄ geometry bootstrap loop!
+    UpdateGaugeFields(state->lattice, state->dt);
+
+    // 6. Update particle dynamics
     UpdateQuarkDynamics(state, state->dt);
     UpdateLeptonDynamics(state, state->dt);
 
