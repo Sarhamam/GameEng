@@ -1,0 +1,22 @@
+# Compiled binaries
+*.exe
+*.out
+*.o
+*.obj
+kappa_zeta_calculator
+
+# Build directories
+build/
+*.pdb
+*.ilk
+*.map
+
+# IDE files
+.vs/
+.vscode/
+*.suo
+*.user
+
+# Logs and data
+*.csv
+*.log
