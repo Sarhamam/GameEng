@@ -218,9 +218,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	newPos.yOffset = newPlayerY;
 	newPos = CalibrateWorldPosition(&world, newPos);
 
-	bool32 validMovement = isWorldPointEmpty(&world, newPos);
+	world_position newPosLeft = newPos;
+	newPosLeft.xOffset -= 0.5f * playerWidth;
+	newPosLeft = CalibrateWorldPosition(&world, newPosLeft);
 
-	if (validMovement)
+	world_position newPosRight = newPos;
+	newPosRight.xOffset += 0.5f * playerWidth;
+	newPosRight = CalibrateWorldPosition(&world, newPosRight);
+
+	if (isWorldPointEmpty(&world, newPos) &&
+		isWorldPointEmpty(&world, newPosLeft) &&
+		isWorldPointEmpty(&world, newPosRight))
 	{
 		state->playerPos = newPos;
 	}
